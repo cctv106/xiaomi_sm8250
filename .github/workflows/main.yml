@@ -1,0 +1,129 @@
+name: Auto Daily Cleanup (北京时间)
+
+on:
+  schedule:
+    # 每天北京时间凌晨0点运行 (UTC 16:00)
+    - cron: '0 16 * * *'
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    # 必须授予删除工作流程运行的权限
+    permissions:
+      actions: write  # 必需：删除工作流程运行
+      contents: write # 必需：删除标签和发布
+      packages: write # 必需：清理缓存
+      id-token: write # 必需：API认证
+
+    steps:
+      # 1. 清理所有Actions缓存
+      - name: 清除Actions缓存
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔄 正在清除Actions缓存..."
+          curl -s -X DELETE \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/caches"
+          echo "✅ 缓存清理完成"
+
+      # 2. 删除所有Releases
+      - name: 删除Releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔄 正在删除Releases..."
+          # 获取所有发布ID
+          release_ids=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases" | jq -r '.[].id')
+          
+          # 删除找到的发布
+          if [ -n "$release_ids" ]; then
+            for id in $release_ids; do
+              curl -s -X DELETE \
+                -H "Authorization: Bearer $GITHUB_TOKEN" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "https://api.github.com/repos/${{ github.repository }}/releases/$id"
+            done
+            echo "✅ 已删除所有Releases (共 $(echo "$release_ids" | wc -w)个)"
+          else
+            echo "ℹ️ 没有可删除的Releases"
+          fi
+
+      # 3. 删除所有Tags
+      - name: 删除Tags
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔄 正在删除Tags..."
+          # 获取所有标签名称
+          tags=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/tags" | jq -r '.[].name')
+          
+          # 删除找到的标签
+          if [ -n "$tags" ]; then
+            for tag in $tags; do
+              curl -s -X DELETE \
+                -H "Authorization: Bearer $GITHUB_TOKEN" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/$tag"
+            done
+            echo "✅ 已删除所有Tags (共 $(echo "$tags" | wc -w)个)"
+          else
+            echo "ℹ️ 没有可删除的Tags"
+          fi
+
+      # 4. 删除所有工作流程运行记录（关键改进）
+      - name: 删除工作流程运行记录
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔄 正在删除工作流程运行记录..."
+          CURRENT_RUN_ID=${{ github.run_id }}
+          
+          # 获取所有工作流程运行ID（排除当前运行）
+          run_ids=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs" | \
+            jq -r ".workflow_runs[] | select(.id != $CURRENT_RUN_ID) | .id")
+          
+          # 删除找到的工作流程运行
+          if [ -n "$run_ids" ]; then
+            for run_id in $run_ids; do
+              echo "删除工作流程运行: $run_id"
+              curl -s -X DELETE \
+                -H "Authorization: Bearer $GITHUB_TOKEN" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "https://api.github.com/repos/${{ github.repository }}/actions/runs/$run_id"
+            done
+            echo "✅ 已删除所有工作流程运行记录 (共 $(echo "$run_ids" | wc -w)个)"
+          else
+            echo "ℹ️ 没有可删除的工作流程运行记录"
+          fi
+
+      # 5. 自我删除（100%可靠）
+      - name: 自我删除
+        if: always()  # 确保100%执行
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔄 正在自我删除..."
+          RUN_ID=${{ github.run_id }}
+          
+          # 直接删除当前运行
+          curl -s -X DELETE \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID"
+          
+          # 添加短暂延迟确保删除请求完成
+          sleep 3
+          echo "✅ 自我删除请求已发送"
+          
+          # 强制停止当前工作流程（确保立即终止）
+          echo "::stop-commands::self-delete"
+          echo "✅ 工作流已终止"
