@@ -108,34 +108,56 @@ fi
 
 modify_ksu_version() {
     cd "$KERNEL_SRC/KernelSU"
+    
+    # 增强版本标识获取逻辑
     if [ -n "$KSU_META" ]; then
         BRANCH_NAME="${KSU_META%%/*}"
         CUSTOM_TAG="${KSU_META#*/}"
     else
-        BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+        # 优先获取标签名或分支名
+        BRANCH_NAME=$(git describe --tags --exact-match 2>/dev/null || git symbolic-ref -q --short HEAD)
+        
+        # 如果以上都失败，使用提交ID
+        if [ -z "$BRANCH_NAME" ]; then
+            BRANCH_NAME=$(git rev-parse --short HEAD)
+        fi
+        
+        # 设置固定标识
         CUSTOM_TAG="酷安@宝明v"
     fi
+    
     echo "分支名: $BRANCH_NAME"
     echo "自定义版本标识: $CUSTOM_TAG (固定为酷安@宝明v)"
-    CUSTOM_TAG="酷安@宝明v"
+    
     cd kernel
     KSU_API_VERSION=$(grep -m1 "KSU_VERSION_API :=" Makefile | awk -F'= ' '{print $2}' | tr -d '[:space:]')
     [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
     echo "KSU_API_VERSION=$KSU_API_VERSION"
+    
+    # 构建完整版本字符串
     KSU_VERSION_FULL="v$KSU_API_VERSION-$CUSTOM_TAG@$BRANCH_NAME"
     echo "KSU_VERSION_FULL=$KSU_VERSION_FULL"
+    
+    # 更新Makefile中的版本信息
     sed -i '/KSU_VERSION_API :=/d' Makefile
     sed -i '/KSU_VERSION_FULL :=/d' Makefile
     echo "KSU_VERSION_API := $KSU_API_VERSION" >> Makefile
     echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" >> Makefile
+    
     cd ..
+    
+    # 计算KSU版本号
     KSU_VERSION=$(expr $(git rev-list --count "$BRANCH_NAME" 2>/dev/null || echo 13000) + 10700)
     echo "KSUVER=$KSU_VERSION"
+    
+    # 显示最终版本信息
     echo "==== 最终Makefile版本信息预览 ===="
     grep -A5 "KSU_VERSION_API" kernel/Makefile
     echo "================================"
+    
     cd "$KERNEL_SRC"
 }
+
 if [ "$KSU_VERSION" == "ksu" ]; then
     KSU_ZIP_STR=KernelSU
     echo "KSU is enabled"
