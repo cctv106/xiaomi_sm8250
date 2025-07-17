@@ -1,8 +1,4 @@
 #!/bin/bash
-
-export LANG="en_US.UTF-8"
-export LC_ALL="en_US.UTF-8"
-
 # Some logics of this script are copied from [scripts/build_kernel]. Thanks to UtsavBalar1231.
 
 # Ensure the script exits on error
@@ -111,70 +107,36 @@ fi
 
 modify_ksu_version() {
     cd "$KERNEL_SRC/KernelSU"
-    
-    # 确保在中文环境中工作
-    export LANG="zh_CN.UTF-8"
-    export LC_ALL="zh_CN.UTF-8"
-    
     if [ -n "$KSU_META" ]; then
         BRANCH_NAME="${KSU_META%%/*}"
         CUSTOM_TAG="${KSU_META#*/}"
     else
-        # 优先获取标签名或分支名
-        BRANCH_NAME=$(git describe --tags --exact-match 2>/dev/null || git symbolic-ref -q --short HEAD)
-        
-        # 如果以上都失败，使用提交ID
-        if [ -z "$BRANCH_NAME" ]; then
-            BRANCH_NAME=$(git rev-parse --short HEAD)
-        fi
-        
-        # 保留中文和符号
+        BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
         CUSTOM_TAG="酷安@宝明v"
     fi
-    
     echo "分支名: $BRANCH_NAME"
-    echo "自定义版本标识: $CUSTOM_TAG"
-    
+    echo "自定义版本标识: $CUSTOM_TAG (固定为酷安@宝明v)"
+    CUSTOM_TAG="酷安@宝明v"
     cd kernel
-    
-    # 确保使用UTF-8编码处理文件
-    KSU_API_VERSION=$(grep -m1 "KSU_VERSION_API :=" Makefile | awk -F'= ' '{print $2}' | tr -d '[:space:]' | iconv -f utf-8)
+    KSU_API_VERSION=$(grep -m1 "KSU_VERSION_API :=" Makefile | awk -F'= ' '{print $2}' | tr -d '[:space:]')
     [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
     echo "KSU_API_VERSION=$KSU_API_VERSION"
-    
-    # 构建完整版本字符串（保留中文和符号）
-    KSU_VERSION_FULL="v${KSU_API_VERSION}-${CUSTOM_TAG}@${BRANCH_NAME}"
+    KSU_VERSION_FULL="v$KSU_API_VERSION-$CUSTOM_TAG@$BRANCH_NAME"
     echo "KSU_VERSION_FULL=$KSU_VERSION_FULL"
-    
-    # 使用支持UTF-8的sed更新Makefile
     sed -i '/KSU_VERSION_API :=/d' Makefile
     sed -i '/KSU_VERSION_FULL :=/d' Makefile
-    echo "KSU_VERSION_API := $KSU_API_VERSION" | iconv -f utf-8 -t utf-8 >> Makefile
-    echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" | iconv -f utf-8 -t utf-8 >> Makefile
+    
+    # 修复点：使用单引号和转义处理特殊字符
+    echo "KSU_VERSION_API := $KSU_API_VERSION" >> Makefile
+    echo "KSU_VERSION_FULL := \"$KSU_VERSION_FULL\"" >> Makefile
     
     cd ..
-    
-    # 计算KSU版本号
     KSU_VERSION=$(expr $(git rev-list --count "$BRANCH_NAME" 2>/dev/null || echo 13000) + 10700)
     echo "KSUVER=$KSU_VERSION"
-    
-    # 显示最终版本信息
     echo "==== 最终Makefile版本信息预览 ===="
     grep -A5 "KSU_VERSION_API" kernel/Makefile
     echo "================================"
-    
-    # 确保版本信息被正确导出
-    export KSU_VERSION_FULL="$KSU_VERSION_FULL"
-    export KSU_API_VERSION="$KSU_API_VERSION"
-    
     cd "$KERNEL_SRC"
-    
-    # 更新内核配置（使用UTF-8编码）
-    if [ -f "out/.config" ]; then
-        scripts/config --file out/.config \
-            --set-str CONFIG_KSU_VERSION_API "$KSU_API_VERSION" \
-            --set-str CONFIG_KSU_VERSION_FULL "$(echo "$KSU_VERSION_FULL" | iconv -f utf-8 -t utf-8)"
-    fi
 }
 
 if [ "$KSU_VERSION" == "ksu" ]; then
