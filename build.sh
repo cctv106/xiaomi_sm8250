@@ -109,62 +109,51 @@ fi
 modify_ksu_version() {
     cd "$KERNEL_SRC/KernelSU"
     
-    # 1. 获取分支和标签信息
-    if [ -n "$KSU_META" ]; then
-        BRANCH_NAME="${KSU_META%%/*}"
-        CUSTOM_TAG="${KSU_META#*/}"
-    else
-        BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
-        CUSTOM_TAG="酷安@宝明v"
-    fi
+    # 1. 确保分支信息可靠获取
+    BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown-branch")
+    CUSTOM_TAG="酷安@宝明v"
     
-    # 确保分支名不为空
-    [ -z "$BRANCH_NAME" ] && BRANCH_NAME="unknown"
-    echo "分支名: $BRANCH_NAME"
-    echo "自定义版本标识: $CUSTOM_TAG"
-    
+    # 2. 确保API版本可靠获取（带默认值）
     cd kernel
-    
-    # 2. 可靠获取API版本
-    KSU_API_VERSION=$(grep -m1 "KSU_VERSION_API :=" Makefile | awk -F'= ' '{print $2}' | tr -d '[:space:]')
-    
-    # 添加默认值防止空值
-    if [ -z "$KSU_API_VERSION" ]; then
+    if ! KSU_API_VERSION=$(grep -m1 "KSU_VERSION_API :=" Makefile | awk -F'= ' '{print $2}' | tr -d '[:space:]'); then
         KSU_API_VERSION="3.1.7"
-        echo "警告: 未找到KSU_API_VERSION，使用默认值 $KSU_API_VERSION"
     fi
-    echo "KSU_API_VERSION=$KSU_API_VERSION"
     
-    # 3. 生成完整版本字符串
-    # 使用printf确保特殊字符正确处理
-    KSU_VERSION_FULL=$(printf "v%s-%s@%s" "$KSU_API_VERSION" "$CUSTOM_TAG" "$BRANCH_NAME")
-    echo "KSU_VERSION_FULL=$KSU_VERSION_FULL"
+    # 3. 构建完整版本字符串（带校验）
+    # 创建临时文件确保安全
+    tmp_file=$(mktemp)
+    cat > $tmp_file <<EOF
+BRANCH_NAME="$BRANCH_NAME"
+CUSTOM_TAG="$CUSTOM_TAG"
+KSU_API_VERSION="$KSU_API_VERSION"
+EOF
+    source $tmp_file
+    rm -f $tmp_file
     
-    # 4. 更新Makefile
-    # 删除旧行
-    sed -i '/KSU_VERSION_API :=/d' Makefile
-    sed -i '/KSU_VERSION_FULL :=/d' Makefile
+    KSU_VERSION_FULL="v$KSU_API_VERSION-$CUSTOM_TAG@$BRANCH_NAME"
     
-    # 添加新行
-    echo "KSU_VERSION_API := $KSU_API_VERSION" >> Makefile
-    echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" >> Makefile
+    # 4. 更新Makefile（使用临时文件避免sed问题）
+    {
+        grep -v "KSU_VERSION_API :=" Makefile
+        echo "KSU_VERSION_API := $KSU_API_VERSION"
+        echo "KSU_VERSION_FULL := $KSU_VERSION_FULL"
+    } > Makefile.tmp
     
-    cd ..
+    mv Makefile.tmp Makefile
     
-    # 5. 生成KSUVER版本号
-    # 更可靠的提交计数方式
-    if [ -n "$BRANCH_NAME" ]; then
-        commit_count=$(git rev-list --count "$BRANCH_NAME" 2>/dev/null || echo 13000)
-    else
-        commit_count=13000
-    fi
+    # 5. 生成KSUVER（带容错）
+    commit_count=$(git rev-list --count HEAD 2>/dev/null || echo 13000)
     KSU_VERSION=$((commit_count + 10700))
-    echo "KSUVER=$KSU_VERSION"
     
-    # 6. 调试输出
-    echo "==== 最终Makefile版本信息预览 ===="
-    grep -A5 "KSU_VERSION_API" kernel/Makefile
-    echo "================================"
+    # 6. 调试输出（强制输出所有变量）
+    echo "=============================="
+    echo "KSU版本信息调试输出："
+    echo "分支名: $BRANCH_NAME"
+    echo "自定义标签: $CUSTOM_TAG"
+    echo "API版本: $KSU_API_VERSION"
+    echo "完整版本: $KSU_VERSION_FULL"
+    echo "KSUVER: $KSU_VERSION"
+    echo "=============================="
     
     cd "$KERNEL_SRC"
 }
