@@ -1,4 +1,8 @@
 #!/bin/bash
+
+export LANG="en_US.UTF-8"
+export LC_ALL="en_US.UTF-8"
+
 # Some logics of this script are copied from [scripts/build_kernel]. Thanks to UtsavBalar1231.
 
 # Ensure the script exits on error
@@ -112,30 +116,47 @@ modify_ksu_version() {
         CUSTOM_TAG="${KSU_META#*/}"
     else
         BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
-        CUSTOM_TAG="酷安@宝明v"
+        # SukiSU-Ultra 专属中文标识
+        if [[ "$KSU_VERSION" == "sukisu-ultra" ]]; then
+            CUSTOM_TAG="酷安\@宝明v"
+        else
+            CUSTOM_TAG="KernelSU"
+        fi
     fi
+    
     echo "分支名: $BRANCH_NAME"
-    echo "自定义版本标识: $CUSTOM_TAG (固定为酷安@宝明v)"
-    CUSTOM_TAG="酷安@宝明v"
+    echo "自定义版本标识: $CUSTOM_TAG"
+    
     cd kernel
     KSU_API_VERSION=$(grep -m1 "KSU_VERSION_API :=" Makefile | awk -F'= ' '{print $2}' | tr -d '[:space:]')
     [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
-    echo "KSU_API_VERSION=$KSU_API_VERSION"
+    
+    # 构建完整版本号
     KSU_VERSION_FULL="v$KSU_API_VERSION-$CUSTOM_TAG@$BRANCH_NAME"
-    echo "KSU_VERSION_FULL=$KSU_VERSION_FULL"
+    
+    # 清理旧版本信息
     sed -i '/KSU_VERSION_API :=/d' Makefile
     sed -i '/KSU_VERSION_FULL :=/d' Makefile
     
-    # 修复点：使用单引号和转义处理特殊字符
+    # 写入新版本信息
     echo "KSU_VERSION_API := $KSU_API_VERSION" >> Makefile
-    echo "KSU_VERSION_FULL := \"$KSU_VERSION_FULL\"" >> Makefile
+    
+    # SukiSU-Ultra 特殊处理中文标识
+    if [[ "$KSU_VERSION" == "sukisu-ultra" ]]; then
+        echo 'KSU_VERSION_FULL := "'"$KSU_VERSION_FULL"'"' >> Makefile
+    else
+        echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" >> Makefile
+    fi
     
     cd ..
     KSU_VERSION=$(expr $(git rev-list --count "$BRANCH_NAME" 2>/dev/null || echo 13000) + 10700)
+    
+    # 显示调试信息
     echo "KSUVER=$KSU_VERSION"
     echo "==== 最终Makefile版本信息预览 ===="
     grep -A5 "KSU_VERSION_API" kernel/Makefile
     echo "================================"
+    
     cd "$KERNEL_SRC"
 }
 
