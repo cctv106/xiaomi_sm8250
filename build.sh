@@ -139,7 +139,7 @@ elif [[ "$KSU_VERSION" == "sukisu-ultra" && "$SuSFS_ENABLE" -eq 1 ]]; then
     KSU_API_VERSION=$(grep -m1 "KSU_VERSION_API :=" kernel/Makefile | awk -F'= ' '{print $2}' | tr -d '[:space:]')
     [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
     
-    CUSTOM_TAG="酷安@宝明v"
+    CUSTOM_TAG="酷安宝明v"
     
     KSU_VERSION_FULL="v$KSU_API_VERSION-$CUSTOM_TAG@susfs-main"
     
@@ -167,7 +167,7 @@ elif [ "$KSU_VERSION" == "sukisu-ultra" ]; then
     KSU_API_VERSION=$(grep -m1 "KSU_VERSION_API :=" kernel/Makefile | awk -F'= ' '{print $2}' | tr -d '[:space:]')
     [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
     
-    CUSTOM_TAG="酷安@宝明v"
+    CUSTOM_TAG="酷安宝明v"
     
     KSU_VERSION_FULL="v$KSU_API_VERSION-$CUSTOM_TAG@nongki"
     
