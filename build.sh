@@ -6,7 +6,7 @@
 set -e
 
 TOOLCHAIN_PATH=$HOME/toolchain/proton-clang/bin
-GIT_COMMIT_ID=$(git rev-parse --short=8 HEAD)
+GIT_COMMIT_ID=$(git rev-parse --short=13 HEAD)
 TARGET_DEVICE=$1
 
 if [ -z "$1" ]; then
@@ -133,10 +133,58 @@ elif [[ "$KSU_VERSION" == "sukisu-ultra" && "$SuSFS_ENABLE" -eq 1 ]]; then
     KSU_ZIP_STR="SukiSU-Ultra"
     echo "SukiSU-Ultra && SuSFS is enabled"
     curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
+    
+    cd KernelSU || { echo "KernelSU directory not found"; exit 1; }
+    
+    KSU_API_VERSION=$(grep -m1 "KSU_VERSION_API :=" kernel/Makefile | awk -F'= ' '{print $2}' | tr -d '[:space:]')
+    [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
+    
+    CUSTOM_TAG="酷安@宝明v"
+    
+    KSU_VERSION_FULL="v$KSU_API_VERSION-$CUSTOM_TAG@susfs-main"
+    
+    echo "Updating Makefile with custom version:"
+    echo "  KSU_VERSION_API := $KSU_API_VERSION"
+    echo "  KSU_VERSION_FULL := $KSU_VERSION_FULL"
+    
+    sed -i '/KSU_VERSION_API :=/d' kernel/Makefile
+    sed -i '/KSU_VERSION_FULL :=/d' kernel/Makefile
+    
+    {
+        echo "KSU_VERSION_API := $KSU_API_VERSION"
+        echo "KSU_VERSION_FULL := $KSU_VERSION_FULL"
+    } >> kernel/Makefile
+    
+    cd ..
+
 elif [ "$KSU_VERSION" == "sukisu-ultra" ]; then
     KSU_ZIP_STR=SukiSU-Ultra
     echo "SukiSU-Ultra is enabled"
     curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s nongki
+    
+    cd KernelSU || { echo "KernelSU directory not found"; exit 1; }
+    
+    KSU_API_VERSION=$(grep -m1 "KSU_VERSION_API :=" kernel/Makefile | awk -F'= ' '{print $2}' | tr -d '[:space:]')
+    [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
+    
+    CUSTOM_TAG="酷安@宝明v"
+    
+    KSU_VERSION_FULL="v$KSU_API_VERSION-$CUSTOM_TAG@nongki"
+    
+    echo "Updating Makefile with custom version:"
+    echo "  KSU_VERSION_API := $KSU_API_VERSION"
+    echo "  KSU_VERSION_FULL := $KSU_VERSION_FULL"
+    
+    sed -i '/KSU_VERSION_API :=/d' kernel/Makefile
+    sed -i '/KSU_VERSION_FULL :=/d' kernel/Makefile
+    
+    {
+        echo "KSU_VERSION_API := $KSU_API_VERSION"
+        echo "KSU_VERSION_FULL := $KSU_VERSION_FULL"
+    } >> kernel/Makefile
+    
+    cd ..
+
 else
     KSU_ZIP_STR=NoKernelSU
     echo "KSU is disabled"
@@ -150,22 +198,20 @@ rm -rf anykernel/
 echo "Clone AnyKernel3 for packing kernel (repo: https://github.com/liyafe1997/AnyKernel3)"
 git clone https://github.com/liyafe1997/AnyKernel3 -b kona --single-branch --depth=1 anykernel
 
-# Add date to local version
-local_version_str="-perf"
-local_version_date_str="-$(date +%Y%m%d)-${GIT_COMMIT_ID}-perf"
-
-sed -i "s/${local_version_str}/${local_version_date_str}/g" arch/arm64/configs/${TARGET_DEVICE}_defconfig
-
-
 Build_AOSP(){
 # ------------- Building for AOSP -------------
     echo "Building for AOSP......"
     make $MAKE_ARGS ${TARGET_DEVICE}_defconfig
 
     SET_CONFIG
+ 
+    (echo > .scmversion && scripts/config --file out/.config -d LOCALVERSION_AUTO --set-str CONFIG_LOCALVERSION "-${GIT_COMMIT_ID}" >/dev/null)
     
-    make $MAKE_ARGS -j$(nproc)
+    export KBUILD_BUILD_TIMESTAMP="$(date '+%a %b %d %H:%M:%S CST 2023')"
 
+
+    make $MAKE_ARGS -j$(nproc)
+    
     Image_Repack
 
     echo "Build for AOSP finished."
@@ -243,6 +289,11 @@ Build_MIUI(){
 
     SET_CONFIG MIUI
 
+    (echo > .scmversion && scripts/config --file out/.config -d LOCALVERSION_AUTO --set-str CONFIG_LOCALVERSION "-${GIT_COMMIT_ID}" >/dev/null)
+    
+    export KBUILD_BUILD_TIMESTAMP="$(date '+%a %b %d %H:%M:%S CST 2023')"
+
+
     make $MAKE_ARGS -j$(nproc)
 
     Image_Repack MIUI
@@ -287,7 +338,7 @@ SET_CONFIG(){
     else
         scripts/config --file out/.config -d KSU
     fi
-
+   
     # Enable the KSU_MANUAL_HOOK for sukisu-ultra
     if [ "$KSU_VERSION" == "sukisu-ultra" ];then
         scripts/config --file out/.config -e KSU_MANUAL_HOOK
