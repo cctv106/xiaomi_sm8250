@@ -20,6 +20,8 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
+
+
 if [ ! -d $TOOLCHAIN_PATH ]; then
     echo "TOOLCHAIN_PATH [$TOOLCHAIN_PATH] does not exist."
     echo "Please ensure the toolchain is there, or change TOOLCHAIN_PATH in the script to your toolchain path."
@@ -88,62 +90,57 @@ TARGET_SYSTEM=$4
 
 echo "TARGET_DEVICE: $TARGET_DEVICE"
 
-# 从环境变量检测是否跳过KSU设置
-SKIP_KSU_SETUP=${SKIP_KSU_SETUP:-0}
+KSU_ENABLE=$([[ "$KSU_VERSION" == "ksu" || "$KSU_VERSION" == "rksu" || "$KSU_VERSION" == "sukisu" || "$KSU_VERSION" == "sukisu-ultra" ]] && echo 1 || echo 0)
 
-# 处理SukiSU Ultra定制版本
-if [[ "$KSU_VERSION" == "sukisu-ultra" && "$SKIP_KSU_SETUP" == "1" ]]; then
-    echo "使用预配置的SukiSU Ultra版本"
-    KSU_ENABLE=1
-    if [ "$SuSFS_ENABLE" -eq 1 ]; then
-        KSU_ZIP_STR="SukiSU-Ultra_SuSFS"
-    else
-        KSU_ZIP_STR="SukiSU-Ultra"
-    fi
-else
-    # 常规KernelSU处理逻辑
-    KSU_ENABLE=$([[ "$KSU_VERSION" == "ksu" || "$KSU_VERSION" == "rksu" || "$KSU_VERSION" == "sukisu" || "$KSU_VERSION" == "sukisu-ultra" ]] && echo 1 || echo 0)
-
-    if [ "$KSU_VERSION" == "ksu" ]; then
-        KSU_ZIP_STR=KernelSU
-        echo "KSU is enabled"
-        curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
-    elif [[ "$KSU_VERSION" == "ksu" && "$SuSFS_ENABLE" -eq 1 ]]; then
-        echo "Official KernelSU not supported SuSFS"
-        exit 1
-    elif [[ "$KSU_VERSION" == "rksu" && "$SuSFS_ENABLE" -eq 1 ]]; then
-        KSU_ZIP_STR=RKSU_SuSFS
-        echo "RKSU && SuSFS is enabled"
-        curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s susfs-v1.5.5
-    elif [ "$KSU_VERSION" == "rksu" ]; then
-        KSU_ZIP_STR=RKSU
-        echo "RKSU is enabled"
-        curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
-    elif [[ "$KSU_VERSION" == "sukisu" && "$SuSFS_ENABLE" -eq 1 ]]; then
-        KSU_ZIP_STR=SukiSU_SuSFS
-        echo "SukiSU && SuSFS is enabled"
-        curl -LSs "https://raw.githubusercontent.com/ShirkNeko/KernelSU/main/kernel/setup.sh" | bash -s susfs-dev
-    elif [ "$KSU_VERSION" == "sukisu" ]; then
-        KSU_ZIP_STR=SukiSU
-        echo "SukiSU is enabled"
-        curl -LSs "https://raw.githubusercontent.com/ShirkNeko/KernelSU/main/kernel/setup.sh" | bash -s dev
-    elif [[ "$KSU_VERSION" == "sukisu-ultra" && "$SuSFS_ENABLE" -eq 1 ]]; then
-        KSU_ZIP_STR="SukiSU-Ultra"
-        echo "SukiSU-Ultra && SuSFS is enabled"
-        curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
-    elif [ "$KSU_VERSION" == "sukisu-ultra" ]; then
-        KSU_ZIP_STR=SukiSU-Ultra
-        echo "SukiSU-Ultra is enabled"
-        curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s nongki
-    else
-        KSU_ZIP_STR=NoKernelSU
-        echo "KSU is disabled"
-    fi
+if [ "$ADDITIONAL" == "susfs-kpm" ]; then
+    SuSFS_ENABLE=1
+    KPM_ENABLE=1
+    echo "Enable SuSFS and KPM"
+elif [ "$ADDITIONAL" == "susfs" ]; then
+    SuSFS_ENABLE=1
+    echo "Enable SuSFS"
+elif [ "$ADDITIONAL" == "kpm" ]; then
+    KPM_ENABLE=1
+    echo "Enable KPM"
+else 
+    echo "The additional function is not enabled"
 fi
 
-# 设置KSU版本信息（来自GitHub Actions）
-KSU_API_VERSION=${KSU_API_VERSION:-3.1.7}
-KSU_VERSION_FULL=${KSU_VERSION_FULL:-v$KSU_API_VERSION-default@main}
+if [ "$KSU_VERSION" == "ksu" ]; then
+    KSU_ZIP_STR=KernelSU
+    echo "KSU is enabled"
+    curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
+elif [[ "$KSU_VERSION" == "ksu" && "$SuSFS_ENABLE" -eq 1 ]]; then
+    echo "Official KernelSU not supported SuSFS"
+    exit 1
+elif [[ "$KSU_VERSION" == "rksu" && "$SuSFS_ENABLE" -eq 1 ]]; then
+    KSU_ZIP_STR=RKSU_SuSFS
+    echo "RKSU && SuSFS is enabled"
+    curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s susfs-v1.5.5
+elif [ "$KSU_VERSION" == "rksu" ]; then
+    KSU_ZIP_STR=RKSU
+    echo "RKSU is enabled"
+    curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
+elif [[ "$KSU_VERSION" == "sukisu" && "$SuSFS_ENABLE" -eq 1 ]]; then
+    KSU_ZIP_STR=SukiSU_SuSFS
+    echo "SukiSU && SuSFS is enabled"
+    curl -LSs "https://raw.githubusercontent.com/ShirkNeko/KernelSU/main/kernel/setup.sh" | bash -s susfs-dev
+elif [ "$KSU_VERSION" == "sukisu" ]; then
+    KSU_ZIP_STR=SukiSU
+    echo "SukiSU is enabled"
+    curl -LSs "https://raw.githubusercontent.com/ShirkNeko/KernelSU/main/kernel/setup.sh" | bash -s dev
+elif [[ "$KSU_VERSION" == "sukisu-ultra" && "$SuSFS_ENABLE" -eq 1 ]]; then
+    KSU_ZIP_STR="SukiSU-Ultra"
+    echo "SukiSU-Ultra && SuSFS is enabled"
+    curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
+elif [ "$KSU_VERSION" == "sukisu-ultra" ]; then
+    KSU_ZIP_STR=SukiSU-Ultra
+    echo "SukiSU-Ultra is enabled"
+    curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s nongki
+else
+    KSU_ZIP_STR=NoKernelSU
+    echo "KSU is disabled"
+fi
 
 echo "Cleaning..."
 
