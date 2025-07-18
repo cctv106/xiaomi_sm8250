@@ -108,7 +108,15 @@ TARGET_SYSTEM=$4
 
 echo "TARGET_DEVICE: $TARGET_DEVICE"
 
-KSU_ENABLE=$([[ "$KSU_VERSION" == "ksu" || "$KSU_VERSION" == "rksu" || "$KSU_VERSION" == "sukisu" || "$KSU_VERSION" == "sukisu-ultra" ]] && echo 1 || echo 0)
+# 使用case语句代替复杂的条件判断 - 修复134行错误
+case "$KSU_VERSION" in
+    "ksu" | "rksu" | "sukisu" | "sukisu-ultra")
+        KSU_ENABLE=1
+        ;;
+    *)
+        KSU_ENABLE=0
+        ;;
+esac
 
 if [ "$ADDITIONAL" == "susfs-kpm" ]; then
     SuSFS_ENABLE=1
@@ -131,7 +139,7 @@ if [ "$KSU_VERSION" == "ksu" ]; then
 elif [[ "$KSU_VERSION" == "ksu" && "$SuSFS_ENABLE" -eq 1 ]]; then
     echo "Official KernelSU not supported SuSFS"
     exit 1
-elif [[ "$KSU_VERSION" == "rksu" && "$SuSFS_ENABLE" -极 1 ]]; then
+elif [[ "$KSU_VERSION" == "rksu" && "$SuSFS_ENABLE" -eq 1 ]]; then
     KSU_ZIP_STR=RKSU_SuSFS
     echo "RKSU && SuSFS is enabled"
     curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s susfs-v1.5.5
