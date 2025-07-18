@@ -58,7 +58,7 @@ on:
           - 'no'
           
       ksu_meta:
-        description: "分支名/自定义版本标识 (支持中文和特殊符号)"
+        description: "分支名/自定义版本标识"
         required: false
         type: string
         default: "susfs-main/酷安@宝明v"
@@ -124,7 +124,7 @@ jobs:
           wget https://github.com/kdrag0n/proton-clang/archive/refs/tags/20210522.zip
           unzip 20210522.zip
           mv proton-clang-20210522 proton-clang
-          rm proton-clang/bin/ld 20210522.zip
+          rm 20210522.zip
 
       - name: Cache ccache
         uses: actions/cache@v4
@@ -145,7 +145,7 @@ jobs:
         run: |
           declare -A device_map=(
             ["psyche"]="Mi12X" ["thyme"]="Mi10S" ["umi"]="Mi10" ["munch"]="K40S"
-            ["lmi"]="K30Pro" ["cmi"]="Mi10Pro" ["cas"]="Mi10Ultra" ["apollo"]="极10T-K30SUltra"
+            ["lmi"]="K30Pro" ["cmi"]="Mi10Pro" ["cas"]="Mi10Ultra" ["apollo"]="Mi10T-K30SUltra"
             ["alioth"]="Mi11X-K40" ["elish"]="XiaomiPad5Pro" ["enuma"]="XiaomiPad5Pro5G"
             ["dagu"]="XiaomiPad5Pro12.4" ["pipa"]="XiaomiPad6"
           )
