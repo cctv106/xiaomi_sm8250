@@ -56,13 +56,13 @@ on:
           - 'kpm'
           - 'susfs-kpm'
           - 'no'
-
-      # 自定义版本标识参数
+          
+      # 添加KSU_META输入参数
       ksu_meta:
-        description: '分支名/自定义版本标识 (仅用于 sukisu-ultra)'
+        description: "分支名/自定义版本标识"
         required: false
-        default: '酷安@宝明v'  # 设置为"酷安@宝明v"
         type: string
+        default: "susfs-main/Numbersf"
 
 permissions:
   contents: write
@@ -93,6 +93,8 @@ jobs:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       CCACHE_NOHASHDIR: "true"
       CCACHE_HARDLINK: "true"
+      # 设置KSU_META环境变量
+      KSU_META: ${{ github.event.inputs.ksu_meta }}
 
     steps:
       - uses: actions/checkout@v4
@@ -100,7 +102,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y build-essential git curl wget bison flex zip bc cpio libssl-dev libncurses-dev gcc python3 python3-pip ccache
+          sudo apt-get install -y build-essential git curl wget bison flex zip bc cpio libssl-dev libncurses-dev gcc python3 python3-pip ccache jq
 
       - name: Clean workspace
         run: |
@@ -134,61 +136,12 @@ jobs:
           key: ${{ runner.os }}-ccache-${{ matrix.device }}-${{ github.sha }}
           restore-keys: ${{ runner.os }}-ccache-${{ matrix.device }}-
 
-      - name: Customize KernelSU Version (for sukisu-ultra)
-        if: ${{ github.event.inputs.kernelsu_version == 'sukisu-ultra' }}
-        run: |
-          echo "应用自定义版本处理..."
-          META="${{ github.event.inputs.ksu_meta }}"
-          # 使用中文符号处理
-          if [[ "$META" == *"@"* ]]; then
-            BRANCH_NAME="${META%%@*}"
-            CUSTOM_TAG="${META#*@}"
-          else
-            BRANCH_NAME="${META%%/*}"
-            CUSTOM_TAG="${META#*/}"
-          fi
-          echo "分支名: $BRANCH_NAME"
-          echo "自定义版本标识: $CUSTOM_TAG"
-
-          # 克隆 SukiSU-Ultra
-          git clone https://github.com/SukiSU-Ultra/SukiSU-Ultra.git -b "$BRANCH_NAME" SukiSU-Ultra
-          cd SukiSU-Ultra/kernel
-          
-          # 设置内核版本
-          KSU_API_VERSION=$(grep "KSU_VERSION_API :=" Makefile | awk -F'= ' '{print $2}')
-          [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
-          
-          KSU_VERSION_FULL="v$KSU_API_VERSION-$CUSTOM_TAG@$BRANCH_NAME"
-          echo "KSU_VERSION_FULL=$KSU_VERSION_FULL" >> $GITHUB_ENV
-          
-          # 修改 Makefile
-          sed -i '/KSU_VERSION_API :=/d' Makefile
-          sed -i '/KSU_VERSION_FULL :=/d' Makefile
-          echo "KSU_VERSION_API := $KSU_API_VERSION" >> Makefile
-          echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" >> Makefile
-          
-          echo "::group::最终 Makefile 预览"
-          grep -A5 "KSU_VERSION_API" Makefile
-          echo "::endgroup::"
-          
-          # 返回工作目录
-          cd ../..
-          
-          # 设置版本变量供后续使用
-          KSU_VERSION=$(expr $(git rev-list --count HEAD 2>/dev/null || echo 13000) + 10700)
-          echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
-
       - name: Build Kernel
+        env:
+          KSU_META: ${{ env.KSU_META }}
         run: |
           sed -i "s|TOOLCHAIN_PATH=\$HOME/toolchain/proton-clang/bin|TOOLCHAIN_PATH=$(pwd)/toolchain/proton-clang/bin|" build.sh
-          
-          # 传递 KSU 版本信息给构建脚本
-          EXTRA_ARGS=""
-          if [ -n "$KSUVER" ]; then
-            EXTRA_ARGS="--ksu-ver $KSUVER"
-          fi
-          
-          bash build.sh "${{ matrix.device }}" "${{ github.event.inputs.kernelsu_version }}" "${{ github.event.inputs.additional_function }}" "${{ github.event.inputs.system_version }}" $EXTRA_ARGS
+          bash build.sh "${{ matrix.device }}" "${{ github.event.inputs.kernelsu_version }}" "${{ github.event.inputs.additional_function }}" "${{ github.event.inputs.system_version }}" "$KSU_META"
 
       - name: Generate Device Name Mapping
         id: device_mapping
@@ -215,19 +168,13 @@ jobs:
           fi
           DEVICE_NAME="${{ env.DEVICE_NAME }}"
           NEW_NAME="AnyKernel3-$DEVICE_NAME.zip"
-          
-          # 添加 KSU 版本到文件名
-          if [ -n "$KSUVER" ]; then
-            NEW_NAME="AnyKernel3-$DEVICE_NAME-KSU$KSUVER.zip"
-          fi
-          
           mv "$ZIP_FILE" "$NEW_NAME"
           echo "ZIP_PATH=$(pwd)/$NEW_NAME" >> $GITHUB_ENV
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.DEVICE_NAME }}${{ env.KSUVER && format('-KSU{0}', env.KSUVER) || '' }}
+          name: ${{ env.DEVICE_NAME }}
           path: ${{ env.ZIP_PATH }}
 
   release:
@@ -249,14 +196,7 @@ jobs:
         run: |
           DEVICE_NAMES=$(ls release | cut -d'-' -f1 | sort -u | tr '\n' ',' | sed 's/,$//')
           echo "device_names=$DEVICE_NAMES" >> $GITHUB_OUTPUT
-          
-          # 添加 KSU 版本信息
-          KSU_INFO=""
-          if [ -n "${{ github.event.inputs.ksu_meta }}" ]; then
-            KSU_INFO="\n- **自定义版本标识**: ${{ github.event.inputs.ksu_meta }}"
-          fi
-          
-          echo "RELEASE_BODY=## SukiSU-Ultra 内核构建\n- **设备:** $DEVICE_NAMES\n- **系统:** ${{ github.event.inputs.system_version }}\n- **KernelSU 版本:** ${{ github.event.inputs.kernelsu_version }}$KSU_INFO\n- **构建日期:** $(date +%Y-%m-%d)\n- **版本标识:** ${{ github.event.inputs.ksu_meta || '酷安@宝明v' }}" >> $GITHUB_ENV
+          echo "RELEASE_BODY=## Kernel Build\n- **Devices:** $DEVICE_NAMES\n- **System:** ${{ github.event.inputs.system_version }}\n- **KernelSU:** ${{ github.event.inputs.kernelsu_version }}\n- **KSU Meta:** ${{ github.event.inputs.ksu_meta }}\n- **Build Date:** $(date +%Y-%m-%d)" >> $GITHUB_ENV
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
