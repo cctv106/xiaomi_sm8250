@@ -136,7 +136,7 @@ if [ "$KSU_VERSION" == "ksu" ]; then
 elif [[ "$KSU_VERSION" == "ksu" && "$SuSFS_ENABLE" -eq 1 ]]; then
     echo "Official KernelSU not supported SuSFS"
     exit 1
-elif [[ "$KSU_VERSION" == "rksu" && "$SuSFS_ENABLE" -eq 1 ]]; then
+elif [[ "$K极_VERSION" == "rksu" && "$SuSFS_ENABLE" -eq 1 ]]; then
     KSU_ZIP_STR=RKSU_SuSFS
     echo "RKSU && SuSFS is enabled"
     curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s susfs-v1.5.5
@@ -147,7 +147,7 @@ elif [ "$KSU_VERSION" == "rksu" ]; then
 elif [[ "$KSU_VERSION" == "sukisu" && "$SuSFS_ENABLE" -eq 1 ]]; then
     KSU_ZIP_STR=SukiSU_SuSFS
     echo "SukiSU && SuSFS is enabled"
-    curl -LSs "https://raw.githubusercontent.com/ShirkNeko/KernelSU/main/kernel/s极up.sh" | bash -s susfs-dev
+    curl -LSs "https://raw.githubusercontent.com/ShirkNeko/KernelSU/main/kernel/setup.sh" | bash -s susfs-dev
 elif [ "$KSU_VERSION" == "sukisu" ]; then
     KSU_ZIP_STR=SukiSU
     echo "SukiSU is enabled"
@@ -182,8 +182,18 @@ elif [[ "$KSU_VERSION" == "sukisu-ultra" && "$SuSFS_ENABLE" -eq 1 ]]; then
         echo "KSU_VERSION_API := $KSU_API_VERSION" >> Makefile
         echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" >> Makefile
         
+        # 关键修复：确保使用UTF-8编码
+        export LC_ALL=en_US.UTF-8
+        export LANG=en_US.UTF-8
+        
+        # 验证修改
         echo "::group::Makefile内容验证"
         tail -n 2 Makefile
+        echo "::endgroup::"
+        
+        # 验证编码
+        echo "::group::UTF-8编码验证"
+        file -i Makefile
         echo "::endgroup::"
     else
         echo "错误：Makefile不存在！"
@@ -222,8 +232,18 @@ elif [ "$KSU_VERSION" == "sukisu-ultra" ]; then
         echo "KSU_VERSION_API := $KSU_API_VERSION" >> Makefile
         echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" >> Makefile
         
+        # 关键修复：确保使用UTF-8编码
+        export LC_ALL=en_US.UTF-8
+        export LANG=en_US.UTF-8
+        
+        # 验证修改
         echo "::group::Makefile内容验证"
         tail -n 2 Makefile
+        echo "::endgroup::"
+        
+        # 验证编码
+        echo "::group::UTF-8编码验证"
+        file -i Makefile
         echo "::endgroup::"
     else
         echo "错误：Makefile不存在！"
