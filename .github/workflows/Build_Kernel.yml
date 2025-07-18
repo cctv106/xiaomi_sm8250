@@ -57,9 +57,9 @@ on:
           - 'susfs-kpm'
           - 'no'
           
-      KSU_META:  # 添加新的输入参数
+      KSU_META:
         type: string
-        description: "分支名/自定义版本标识"
+        description: "Branch name/Custom version tag"
         required: false
         default: "susfs-main/Numbersf"
 
@@ -91,7 +91,7 @@ jobs:
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       CCACHE_NOHASHDIR: "true"
-      CCACHE_HARDLINK: "true"
+      CCACHE_HARDLINK: "true" 
 
     steps:
       - uses: actions/checkout@v4
@@ -132,16 +132,20 @@ jobs:
           path: ~/.cache/ccache_mikernel
           key: ${{ runner.os }}-ccache-${{ matrix.device }}-${{ github.sha }}
           restore-keys: ${{ runner.os }}-ccache-${{ matrix.device }}-
-          
-      # 添加 SukiSU Ultra 步骤
+
+      # 添加SukiSU Ultra处理步骤
       - name: Add SukiSU Ultra
-        if: ${{ github.event.inputs.kernelsu_version == 'sukisu-ultra' }}  # 仅当选择sukisu-ultra时执行
+        if: ${{ github.event.inputs.kernelsu_version == 'sukisu-ultra' }}
         run: |
           META="${{ github.event.inputs.KSU_META }}"
           BRANCH_NAME="${META%%/*}"
           CUSTOM_TAG="${META#*/}"
           echo "分支名: $BRANCH_NAME"
           echo "自定义版本标识: $CUSTOM_TAG"
+
+          # 确保内核目录存在
+          mkdir -p kernel_workspace/kernel_platform
+          cd kernel_workspace/kernel_platform
 
           # 使用文档1中的脚本
           curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s "$BRANCH_NAME"
@@ -169,16 +173,31 @@ jobs:
           KSU_VERSION=$(expr $(git rev-list --count main 2>/dev/null || echo 13000) + 10700)
           echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
 
-          echo "::group:: 最终 Makefile 中版本信息预览"
+          echo "::group::最终Makefile中版本信息预览"
           grep -A5 "KSU_VERSION_API" kernel/Makefile
           echo "::endgroup::"
           
-          cd ..  # 返回工作目录
+          cd ../../..  # 返回工作目录
 
       - name: Build Kernel
         run: |
+          # 设置工具链路径
           sed -i "s|TOOLCHAIN_PATH=\$HOME/toolchain/proton-clang/bin|TOOLCHAIN_PATH=$(pwd)/toolchain/proton-clang/bin|" build.sh
-          bash build.sh "${{ matrix.device }}" "${{ github.event.inputs.kernelsu_version }}" "${{ github.event.inputs.additional_function }}" "${{ github.event.inputs.system_version }}"
+          
+          # 添加调试信息
+          echo "开始构建内核..."
+          echo "设备: ${{ matrix.device }}"
+          echo "KernelSU版本: ${{ github.event.inputs.kernelsu_version }}"
+          echo "附加功能: ${{ github.event.inputs.additional_function }}"
+          echo "系统版本: ${{ github.event.inputs.system_version }}"
+          echo "KSU_META: ${{ github.event.inputs.KSU_META }}"
+          
+          # 执行构建脚本
+          bash build.sh "${{ matrix.device }}" \
+            "${{ github.event.inputs.kernelsu_version }}" \
+            "${{ github.event.inputs.additional_function }}" \
+            "${{ github.event.inputs.system_version }}" \
+            "${{ github.event.inputs.KSU_META }}"
 
       - name: Generate Device Name Mapping
         id: device_mapping
@@ -233,7 +252,14 @@ jobs:
         run: |
           DEVICE_NAMES=$(ls release | cut -d'-' -f1 | sort -u | tr '\n' ',' | sed 's/,$//')
           echo "device_names=$DEVICE_NAMES" >> $GITHUB_OUTPUT
-          echo "RELEASE_BODY=## Kernel Build\n- **Devices:** $DEVICE_NAMES\n- **System:** ${{ github.event.inputs.system_version }}\n- **KernelSU:** ${{ github.event.inputs.kernelsu_version }}\n- **Build Date:** $(date +%Y-%m-%d)" >> $GITHUB_ENV
+          
+          # 添加KSU_META到发布信息
+          KSU_INFO=""
+          if [ "${{ github.event.inputs.kernelsu_version }}" == "sukisu-ultra" ]; then
+            KSU_INFO="\n- **KSU Meta:** ${{ github.event.inputs.KSU_META }}"
+          fi
+          
+          echo "RELEASE_BODY=## Kernel Build\n- **Devices:** $DEVICE_NAMES\n- **System:** ${{ github.event.inputs.system_version }}\n- **KernelSU:** ${{ github.event.inputs.kernelsu_version }}${KSU_INFO}\n- **Build Date:** $(date +%Y-%m-%d)" >> $GITHUB_ENV
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
