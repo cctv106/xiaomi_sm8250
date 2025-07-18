@@ -8,6 +8,7 @@ set -e
 TOOLCHAIN_PATH=$HOME/toolchain/proton-clang/bin
 GIT_COMMIT_ID=$(git rev-parse --short=13 HEAD)
 TARGET_DEVICE=$1
+KSU_META=$5  # 添加第五个参数用于接收KSU_META
 
 if [ -z "$1" ]; then
     echo "Error: No argument provided, please specific a target device." 
@@ -20,7 +21,17 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
-
+# 处理KSU_META参数
+if [ "$2" == "sukisu-ultra" ] && [ -n "$KSU_META" ]; then
+    echo "Processing KSU_META: $KSU_META"
+    BRANCH_NAME="${KSU_META%%/*}"
+    CUSTOM_TAG="${KSU_META#*/}"
+    echo "Branch: $BRANCH_NAME"
+    echo "Custom tag: $CUSTOM_TAG"
+else
+    BRANCH_NAME="nongki"  # 默认分支
+    CUSTOM_TAG="default"
+fi
 
 if [ ! -d $TOOLCHAIN_PATH ]; then
     echo "TOOLCHAIN_PATH [$TOOLCHAIN_PATH] does not exist."
@@ -132,11 +143,52 @@ elif [ "$KSU_VERSION" == "sukisu" ]; then
 elif [[ "$KSU_VERSION" == "sukisu-ultra" && "$SuSFS_ENABLE" -eq 1 ]]; then
     KSU_ZIP_STR="SukiSU-Ultra"
     echo "SukiSU-Ultra && SuSFS is enabled"
-    curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
+    curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s "$BRANCH_NAME"
+    
+    # 进入KernelSU目录设置版本信息
+    cd ./KernelSU
+    KSU_API_VERSION=$(grep -m1 "KSU_VERSION_API :=" kernel/Makefile | awk -F'= ' '{print $2}' | tr -d '[:space:]')
+    [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
+    
+    KSU_VERSION_FULL="v$KSU_API_VERSION-$CUSTOM_TAG@$BRANCH_NAME"
+    echo "KSU_VERSION_FULL: $KSU_VERSION_FULL"
+    
+    # 更新Makefile中的版本信息
+    sed -i '/KSU_VERSION_API :=/d' kernel/Makefile
+    sed -i '/KSU_VERSION_FULL :=/d' kernel/Makefile
+    
+    echo "KSU_VERSION_API := $KSU_API_VERSION" >> kernel/Makefile
+    echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" >> kernel/Makefile
+    
+    # 计算并设置KSU版本号
+    KSU_VERSION=$(expr $(git rev-list --count main 2>/dev/null || echo 13000) + 10700)
+    echo "KSU version: $KSU_VERSION"
+    cd ..
+    
 elif [ "$KSU_VERSION" == "sukisu-ultra" ]; then
     KSU_ZIP_STR=SukiSU-Ultra
     echo "SukiSU-Ultra is enabled"
-    curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s nongki
+    curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s "$BRANCH_NAME"
+    
+    # 进入KernelSU目录设置版本信息
+    cd ./KernelSU
+    KSU_API_VERSION=$(grep -m1 "KSU_VERSION_API :=" kernel/Makefile | awk -F'= ' '{print $2}' | tr -d '[:space:]')
+    [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
+    
+    KSU_VERSION_FULL="v$KSU_API_VERSION-$CUSTOM_TAG@$BRANCH_NAME"
+    echo "KSU_VERSION_FULL: $KSU_VERSION_FULL"
+    
+    # 更新Makefile中的版本信息
+    sed -i '/KSU_VERSION_API :=/d' kernel/Makefile
+    sed -i '/KSU_VERSION_FULL :=/d' kernel/Makefile
+    
+    echo "KSU_VERSION_API := $KSU_API_VERSION" >> kernel/Makefile
+    echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" >> kernel/Makefile
+    
+    # 计算并设置KSU版本号
+    KSU_VERSION=$(expr $(git rev-list --count main 2>/dev/null || echo 13000) + 10700)
+    echo "KSU version: $KSU_VERSION"
+    cd ..
 else
     KSU_ZIP_STR=NoKernelSU
     echo "KSU is disabled"
