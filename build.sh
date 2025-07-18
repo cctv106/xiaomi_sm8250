@@ -20,38 +20,28 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
-# 添加KSU_META参数
-KSU_META_B64=$5
+# 添加KSU_META参数 - 直接使用原始值
+KSU_META=$5
 
-# 解析KSU_META - 仅在此部分使用UTF-8环境
+# 解析KSU_META - 直接使用原始值
 echo "::group::解析自定义版本标识"
-(
-  # 在此子shell中设置UTF-8环境
-  export LC_ALL=C.UTF-8
-  export LANG=C.UTF-8
+if [ -n "$KSU_META" ]; then
+  # 直接使用原始值
+  echo "原始输入: $KSU_META"
   
-  if [ -n "$KSU_META_B64" ]; then
-    # Base64解码
-    KSU_META_RAW=$(echo "$KSU_META_B64" | base64 -d)
-    
-    # 原始输入
-    echo "Base64编码输入: $KSU_META_B64"
-    echo "解码后内容: $KSU_META_RAW"
-    
-    # 提取分支名（第一个斜杠前的内容）
-    BRANCH_NAME="${KSU_META_RAW%%/*}"
-    
-    # 提取自定义标签（第一个斜杠后的所有内容）
-    CUSTOM_TAG="${KSU_META_RAW#*/}"
-    
-    echo "解析后分支名: $BRANCH_NAME"
-    echo "解析后自定义标签: $CUSTOM_TAG"
-  else
-    BRANCH_NAME="susfs-main"
-    CUSTOM_TAG="Numbersf"
-    echo "使用默认值: 分支名=$BRANCH_NAME, 自定义标签=$CUSTOM_TAG"
-  fi
-)
+  # 提取分支名（第一个斜杠前的内容）
+  BRANCH_NAME="${K极_META%%/*}"
+  
+  # 提取自定义标签（第一个斜杠后的所有内容）
+  CUSTOM_TAG="${KSU_META#*/}"
+  
+  echo "解析后分支名: $BRANCH_NAME"
+  echo "解析后自定义标签: $CUSTOM_TAG"
+else
+  BRANCH_NAME="susfs-main"
+  CUSTOM_TAG="Numbersf"
+  echo "使用默认值: 分支名=$BRANCH_NAME, 自定义标签=$CUSTOM_TAG"
+fi
 echo "::endgroup::"
 
 if [ ! -d $TOOLCHAIN_PATH ]; then
@@ -75,7 +65,7 @@ fi
 
 if ! command -v clang >/dev/null 2>&1; then
     echo "[clang] does not exist, please check your environment."
-    exit 极
+    exit 1
 fi
 
 # Enable ccache for speed up compiling 
@@ -116,7 +106,7 @@ KSU_VERSION=$2
 ADDITIONAL=$3
 TARGET_SYSTEM=$4
 
-echo "TARGET_DEV极: $TARGET_DEVICE"
+echo "TARGET_DEVICE: $TARGET_DEVICE"
 
 KSU_ENABLE=$([[ "$KSU_VERSION" == "ksu" || "$KSU_VERSION" == "rksu" || "$KSU_VERSION" == "sukisu" || "$KSU_VERSION" == "sukisu-ultra" ]] && echo 1 || echo 0)
 
@@ -141,15 +131,15 @@ if [ "$KSU_VERSION" == "ksu" ]; then
 elif [[ "$KSU_VERSION" == "ksu" && "$SuSFS_ENABLE" -eq 1 ]]; then
     echo "Official KernelSU not supported SuSFS"
     exit 1
-elif [[ "$KSU_VERSION" == "rksu" && "$SuSFS_ENABLE" -eq 1 ]]; then
+elif [[ "$KSU_VERSION" == "rksu" && "$SuSFS_ENABLE" -极 1 ]]; then
     KSU_ZIP_STR=RKSU_SuSFS
     echo "RKSU && SuSFS is enabled"
-    curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/s极up.sh" | bash -s susfs-v1.5.5
+    curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s susfs-v1.5.5
 elif [ "$KSU_VERSION" == "rksu" ]; then
     KSU_ZIP_STR=RKSU
     echo "RKSU is enabled"
     curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
-elif [[ "$KSU_VERSION" == "sukisu" && "$SuSFS_ENable" -eq 1 ]]; then
+elif [[ "$KSU_VERSION" == "sukisu" && "$SuSFS_ENABLE" -eq 1 ]]; then
     KSU_ZIP_STR=SukiSU_SuSFS
     echo "SukiSU && SuSFS is enabled"
     curl -LSs "https://raw.githubusercontent.com/ShirkNeko/KernelSU/main/kernel/setup.sh" | bash -s susfs-dev
@@ -184,29 +174,24 @@ elif [[ "$KSU_VERSION" == "sukisu-ultra" && "$SuSFS_ENABLE" -eq 1 ]]; then
     echo "分支名: $BRANCH_NAME"
     echo "完整版本: $KSU_VERSION_FULL"
     
-    # 更新Makefile - 仅在此部分使用UTF-8环境
-    (
-      # 在此子shell中设置UTF-8环境
-      export LC_ALL=C.UTF-8
-      export LANG=C.UTF-8
-      
-      if [ -f "Makefile" ]; then
-          # 移除现有定义
-          sed -i '/KSU_VERSION_API :=/d' Makefile
-          sed -i '/KSU_VERSION_FULL :=/d' Makefile
-          
-          # 添加新的定义到文件开头（确保优先使用）
-          sed -i "1i# Custom version added by build script" Makefile
-          sed -i "1iKSU_VERSION_FULL := $KSU_VERSION_FULL" Makefile
-          sed -i "1iKSU_VERSION_API := $KSU_API_VERSION" Makefile
-          sed -i "1i" Makefile  # 添加空行
-      fi
-    )
-    
-    # 验证修改
-    echo "::group::Makefile内容验证"
-    head -n 5 Makefile
-    echo "::endgroup::"
+    # 更新Makefile
+    if [ -f "Makefile" ]; then
+        # 移除现有定义
+        sed -i '/KSU_VERSION_API :=/d' Makefile
+        sed -i '/KSU_VERSION_FULL :=/d' Makefile
+        
+        # 添加新的定义
+        echo "KSU_VERSION_API := $KSU_API_VERSION" >> Makefile
+        echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" >> Makefile
+        
+        # 验证修改
+        echo "::group::Makefile内容验证"
+        tail -n 2 Makefile
+        echo "::endgroup::"
+    else
+        echo "错误：Makefile不存在！"
+        exit 1
+    fi
     
     echo "::endgroup::"
     cd ../..
@@ -232,34 +217,29 @@ elif [ "$KSU_VERSION" == "sukisu-ultra" ]; then
     # 构建完整版本字符串
     KSU_VERSION_FULL="v$KSU_API_VERSION-$CUSTOM_TAG@$BRANCH_NAME"
     
-    echo "API版本: $K极_API_VERSION"
+    echo "API版本: $KSU_API_VERSION"
     echo "自定义标签: $CUSTOM_TAG"
     echo "分支名: $BRANCH_NAME"
     echo "完整版本: $KSU_VERSION_FULL"
     
-    # 更新Makefile - 仅在此部分使用UTF-8环境
-    (
-      # 在此子shell中设置UTF-8环境
-      export LC_ALL=C.UTF-8
-      export LANG=C.UTF-8
-      
-      if [ -f "Makefile" ]; then
-          # 移除现有定义
-          sed -i '/KSU_VERSION_API :=/d' Makefile
-          sed -i '/KSU_VERSION_FULL :=/d' Makefile
-          
-          # 添加新的定义到文件开头（确保优先使用）
-          sed -i "1i# Custom version added by build script" Makefile
-          sed -i "1iKSU_VERSION_FULL := $KSU_VERSION_FULL" Makefile
-          sed -i "1iKSU_VERSION_API := $KSU_API_VERSION" Makefile
-          sed -i "1i" Makefile  # 添加空行
-      fi
-    )
-    
-    # 验证修改
-    echo "::group::Makefile内容验证"
-    head -n 5 Makefile
-    echo "::endgroup::"
+    # 更新Makefile
+    if [ -f "Makefile" ]; then
+        # 移除现有定义
+        sed -i '/KSU_VERSION_API :=/d' Makefile
+        sed -i '/KSU_VERSION_FULL :=/d' Makefile
+        
+        # 添加新的定义
+        echo "KSU_VERSION_API := $KSU_API_VERSION" >> Makefile
+        echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" >> Makefile
+        
+        # 验证修改
+        echo "::group::Makefile内容验证"
+        tail -n 2 Makefile
+        echo "::endgroup::"
+    else
+        echo "错误：Makefile不存在！"
+        exit 1
+    fi
     
     echo "::endgroup::"
     cd ../..
