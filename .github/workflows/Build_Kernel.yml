@@ -58,7 +58,7 @@ on:
           - 'no'
           
       ksu_meta:
-        description: "分支名/自定义版本标识 (支持中文和特殊符号)"
+        description: "分支名/自定义版本标识"
         required: false
         type: string
         default: "susfs-main/酷安@宝明v"
@@ -92,6 +92,7 @@ jobs:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       CCACHE_NOHASHDIR: "true"
       CCACHE_HARDLINK: "true"
+      KSU_META: ${{ github.event.inputs.ksu_meta }}
 
     steps:
       - uses: actions/checkout@v4
@@ -135,19 +136,10 @@ jobs:
 
       - name: Build Kernel
         env:
-          KSU_META_RAW: ${{ github.event.inputs.ksu_meta }}
+          KSU_META: ${{ env.KSU_META }}
         run: |
-          # 确保使用UTF-8环境
-          export LC_ALL=C.UTF-8
-          export LANG=C.UTF-8
-          
-          # 对包含特殊字符的参数进行Base64编码
-          KSU_META_B64=$(echo "$KSU_META_RAW" | base64 -w0)
-          echo "原始输入: $KSU_META_RAW"
-          echo "Base64编码: $KSU_META_B64"
-          
           sed -i "s|TOOLCHAIN_PATH=\$HOME/toolchain/proton-clang/bin|TOOLCHAIN_PATH=$(pwd)/toolchain/proton-clang/bin|" build.sh
-          bash build.sh "${{ matrix.device }}" "${{ github.event.inputs.kernelsu_version }}" "${{ github.event.inputs.additional_function }}" "${{ github.event.inputs.system_version }}" "$KSU_META_B64"
+          bash build.sh "${{ matrix.device }}" "${{ github.event.inputs.kernelsu_version }}" "${{ github.event.inputs.additional_function }}" "${{ github.event.inputs.system_version }}" "$KSU_META"
 
       - name: Generate Device Name Mapping
         id: device_mapping
