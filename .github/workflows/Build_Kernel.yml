@@ -61,7 +61,7 @@ on:
         description: "分支名/自定义版本标识"
         required: false
         type: string
-        default: "susfs-main/酷安@宝明v"
+        default: "susfs-main/自定义标签"
 
 permissions:
   contents: write
@@ -124,7 +124,7 @@ jobs:
           wget https://github.com/kdrag0n/proton-clang/archive/refs/tags/20210522.zip
           unzip 20210522.zip
           mv proton-clang-20210522 proton-clang
-          rm 20210522.zip
+          rm proton-clang/bin/ld 20210522.zip
 
       - name: Cache ccache
         uses: actions/cache@v4
