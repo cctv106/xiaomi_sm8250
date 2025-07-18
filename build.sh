@@ -113,11 +113,11 @@ modify_ksu_version() {
         CUSTOM_TAG="${KSU_META#*/}"
     else
         BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
-        CUSTOM_TAG="酷安@宝明v"
+        CUSTOM_TAG="CUSTOM_TAG"
     fi
     echo "分支名: $BRANCH_NAME"
-    echo "自定义版本标识: $CUSTOM_TAG (固定为酷安@宝明v)"
-    CUSTOM_TAG="酷安@宝明v"
+    echo "自定义版本标识: $CUSTOM_TAG"
+    CUSTOM_TAG="CUSTOM_TAG"
     cd kernel
     KSU_API_VERSION=$(grep -m1 "KSU_VERSION_API :=" Makefile | awk -F'= ' '{print $2}' | tr -d '[:space:]')
     [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
