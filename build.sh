@@ -5,57 +5,6 @@
 # Ensure the script exits on error
 set -e
 
-apply_custom_version() {
-    echo "应用自定义版本处理..."
-    META="酷安@宝明v"
-    
-    # 处理中文字符
-    if [[ "$META" == *"@"* ]]; then
-        # 使用实际存在的分支名
-        BRANCH_NAME="susfs-main"  
-        CUSTOM_TAG="${META#*@}"
-    else
-        BRANCH_NAME="${META%%/*}"
-        CUSTOM_TAG="${META#*/}"
-    fi
-    
-    echo "分支名: $BRANCH_NAME"
-    echo "自定义版本标识: $CUSTOM_TAG"
-    
-    # 克隆SukiSU-Ultra仓库
-    echo "正在克隆 SukiSU-Ultra 仓库..."
-    git clone https://github.com/SukiSU-Ultra/SukiSU-Ultra.git -b "$BRANCH_NAME" SukiSU-Ultra
-    
-    # 进入内核目录
-    cd SukiSU-Ultra/kernel
-    
-    # 设置内核版本
-    KSU_API_VERSION=$(grep "KSU_VERSION_API :=" Makefile | awk -F'= ' '{print $2}')
-    [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
-    
-    # 构建完整版本字符串
-    KSU_VERSION_FULL="v$KSU_API_VERSION-$CUSTOM_TAG@$BRANCH_NAME"
-    echo "KSU_VERSION_FULL=$KSU_VERSION_FULL" >> $GITHUB_ENV
-    
-    # 修改Makefile
-    sed -i '/KSU_VERSION_API :=/d' Makefile
-    sed -i '/KSU_VERSION_FULL :=/d' Makefile
-    echo "KSU_VERSION_API := $KSU_API_VERSION" >> Makefile
-    echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" >> Makefile
-    
-    # 显示修改结果
-    echo "::group::最终 Makefile 预览"
-    grep -A5 "KSU_VERSION_API" Makefile
-    echo "::endgroup::"
-    
-    # 返回工作目录
-    cd ../..
-    
-    # 设置版本变量
-    KSU_VERSION=$(expr $(git rev-list --count HEAD 2>/dev/null || echo 13000) + 10700)
-    echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
-}
-
 TOOLCHAIN_PATH=$HOME/toolchain/proton-clang/bin
 GIT_COMMIT_ID=$(git rev-parse --short=13 HEAD)
 TARGET_DEVICE=$1
@@ -70,6 +19,15 @@ if [ -z "$1" ]; then
     echo "    bash build.sh umi ksu"
     exit 1
 fi
+
+# 添加KSU_META参数
+KSU_META=$5
+
+# 解析KSU_META
+BRANCH_NAME="${KSU_META%%/*}"
+CUSTOM_TAG="${KSU_META#*/}"
+echo "分支名: $BRANCH_NAME"
+echo "自定义版本标识: $CUSTOM_TAG"
 
 if [ ! -d $TOOLCHAIN_PATH ]; then
     echo "TOOLCHAIN_PATH [$TOOLCHAIN_PATH] does not exist."
@@ -95,7 +53,7 @@ if ! command -v clang >/dev/null 2>&1; then
     exit 1
 fi
 
-# Enable ccache for speed up compiling 
+# 启用ccache加速编译
 export CCACHE_DIR="$HOME/.cache/ccache_mikernel" 
 export CC="ccache gcc"
 export CXX="ccache g++"
@@ -121,11 +79,11 @@ if [ ! -f "arch/arm64/configs/${TARGET_DEVICE}_defconfig" ]; then
     exit 1
 fi
 
-# Check clang is existing.
+# 检查clang是否存在
 echo "[clang --version]:"
 clang --version
 
-# Initialize variable
+# 初始化变量
 KERNEL_SRC=$(pwd)
 SuSFS_ENABLE=0
 KPM_ENABLE=0
@@ -177,21 +135,41 @@ elif [ "$KSU_VERSION" == "sukisu" ]; then
 elif [[ "$KSU_VERSION" == "sukisu-ultra" && "$SuSFS_ENABLE" -eq 1 ]]; then
     KSU_ZIP_STR="SukiSU-Ultra"
     echo "SukiSU-Ultra && SuSFS is enabled"
+    curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s "${BRANCH_NAME:-susfs-main}"
     
-    # 应用自定义版本
-    apply_custom_version
+    # 设置KernelSU版本信息
+    cd ./KernelSU
+    KSU_API_VERSION=$(curl -fsSL "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/${BRANCH_NAME:-susfs-main}/kernel/Makefile" | \
+        grep -m1 "KSU_VERSION_API :=" | awk -F'= ' '{print $2}' | tr -d '[:space:]')
+    [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
     
-    # 使用实际存在的分支名
-    curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
+    KSU_VERSION_FULL="v$KSU_API_VERSION-${CUSTOM_TAG:-Numbersf}@${BRANCH_NAME:-susfs-main}"
+    
+    sed -i '/KSU_VERSION_API :=/d' kernel/Makefile
+    sed -i '/KSU_VERSION_FULL :=/d' kernel/Makefile
+    
+    echo "KSU_VERSION_API := $KSU_API_VERSION" >> kernel/Makefile
+    echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" >> kernel/Makefile
+    cd ..
 elif [ "$KSU_VERSION" == "sukisu-ultra" ]; then
     KSU_ZIP_STR=SukiSU-Ultra
     echo "SukiSU-Ultra is enabled"
+    curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s "${BRANCH_NAME:-nongki}"
     
-    # 应用自定义版本
-    apply_custom_version
+    # 设置KernelSU版本信息
+    cd ./KernelSU
+    KSU_API_VERSION=$(curl -fsSL "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/${BRANCH_NAME:-nongki}/kernel/Makefile" | \
+        grep -m1 "KSU_VERSION_API :=" | awk -F'= ' '{print $2}' | tr -d '[:space:]')
+    [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
     
-    # 使用实际存在的分支名
-    curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s nongki
+    KSU_VERSION_FULL="v$KSU_API_VERSION-${CUSTOM_TAG:-Numbersf}@${BRANCH_NAME:-nongki}"
+    
+    sed -i '/KSU_VERSION_API :=/d' kernel/Makefile
+    sed -i '/KSU_VERSION_FULL :=/d' kernel/Makefile
+    
+    echo "KSU_VERSION_API := $KSU_API_VERSION" >> kernel/Makefile
+    echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" >> kernel/Makefile
+    cd ..
 else
     KSU_ZIP_STR=NoKernelSU
     echo "KSU is disabled"
