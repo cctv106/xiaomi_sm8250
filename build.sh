@@ -5,6 +5,9 @@
 # Ensure the script exits on error
 set -e
 
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
+
 TOOLCHAIN_PATH=$HOME/toolchain/proton-clang/bin
 GIT_COMMIT_ID=$(git rev-parse --short=13 HEAD)
 TARGET_DEVICE=$1
@@ -21,19 +24,24 @@ if [ -z "$1" ]; then
 fi
 
 # 添加KSU_META参数
-KSU_META=$5
+KSU_META_B64=$5
 
 # 解析KSU_META
 echo "::group::解析自定义版本标识"
-if [ -n "$KSU_META" ]; then
+echo "环境语言设置: LC_ALL=$LC_ALL, LANG=$LANG"
+if [ -n "$KSU_META_B64" ]; then
+  # Base64解码
+  KSU_META_RAW=$(echo "$KSU_META_B64" | base64 -d)
+  
   # 原始输入
-  echo "原始KSU_META: $KSU_META"
+  echo "Base64编码输入: $KSU_META_B64"
+  echo "解码后内容: $KSU_META_RAW"
   
   # 提取分支名（第一个斜杠前的内容）
-  BRANCH_NAME="${KSU_META%%/*}"
+  BRANCH_NAME="${KSU_META_RAW%%/*}"
   
   # 提取自定义标签（第一个斜杠后的所有内容）
-  CUSTOM_TAG="${KSU_META#*/}"
+  CUSTOM_TAG="${KSU_META_RAW#*/}"
   
   echo "解析后分支名: $BRANCH_NAME"
   echo "解析后自定义标签: $CUSTOM_TAG"
@@ -154,9 +162,16 @@ elif [[ "$KSU_VERSION" == "sukisu-ultra" && "$SuSFS_ENABLE" -eq 1 ]]; then
     
     cd ./KernelSU
     echo "::group::设置KernelSU版本信息"
+    
+    # 确保进入内核目录
+    if [ -d "kernel" ]; then
+        cd kernel
+    fi
+    
     # 获取KSU API版本
-    KSU_API_VERSION=$(curl -fsSL "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/$BRANCH_NAME/kernel/Makefile" | \
-        grep -m1 "KSU_VERSION_API :=" | awk -F':?= ' '{print $NF}' | tr -d '[:space:]')
+    if [ -f "Makefile" ]; then
+        KSU_API_VERSION=$(grep -m1 "KSU_VERSION_API :=" Makefile | awk -F':?= ' '{print $NF}' | tr -d '[:space:]')
+    fi
     [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
     
     # 构建完整版本字符串
@@ -168,18 +183,38 @@ elif [[ "$KSU_VERSION" == "sukisu-ultra" && "$SuSFS_ENABLE" -eq 1 ]]; then
     echo "完整版本: $KSU_VERSION_FULL"
     
     # 更新Makefile
-    sed -i '/KSU_VERSION_API :=/d' kernel/Makefile
-    sed -i '/KSU_VERSION_FULL :=/d' kernel/Makefile
-    echo "KSU_VERSION_API := $KSU_API_VERSION" >> kernel/Makefile
-    echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" >> kernel/Makefile
+    if [ -f "Makefile" ]; then
+        # 确保使用UTF-8环境
+        export LC_ALL=C.UTF-8
+        export LANG=C.UTF-8
+        
+        # 移除现有定义
+        sed -i '/KSU_VERSION_API :=/d' Makefile
+        sed -i '/KSU_VERSION_FULL :=/d' Makefile
+        
+        # 添加新的定义到文件开头（确保优先使用）
+        sed -i "1i# Custom version added by build script" Makefile
+        sed -i "1iKSU_VERSION_FULL := $KSU_VERSION_FULL" Makefile
+        sed -i "1iKSU_VERSION_API := $KSU_API_VERSION" Makefile
+        sed -i "1i" Makefile  # 添加空行
+        
+        # 验证修改
+        echo "::group::Makefile内容验证"
+        head -n 5 Makefile
+        echo "::endgroup::"
+        
+        # 添加UTF-8编码验证
+        echo "::group::UTF-8编码验证"
+        file -i Makefile
+        iconv -f UTF-8 -t UTF-8 Makefile >/dev/null && echo "UTF-8验证成功" || echo "UTF-8验证失败"
+        echo "::endgroup::"
+    else
+        echo "错误：Makefile不存在！"
+        exit 1
+    fi
     
-    # 验证修改
-    echo "::group::Makefile内容验证"
-    grep -A2 "KSU_VERSION" kernel/Makefile
     echo "::endgroup::"
-    
-    echo "::endgroup::"
-    cd ..
+    cd ../..
 elif [ "$KSU_VERSION" == "sukisu-ultra" ]; then
     KSU_ZIP_STR=SukiSU-Ultra
     echo "SukiSU-Ultra is enabled"
@@ -187,9 +222,16 @@ elif [ "$KSU_VERSION" == "sukisu-ultra" ]; then
     
     cd ./KernelSU
     echo "::group::设置KernelSU版本信息"
+    
+    # 确保进入内核目录
+    if [ -d "kernel" ]; then
+        cd kernel
+    fi
+    
     # 获取KSU API版本
-    KSU_API_VERSION=$(curl -fsSL "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/$BRANCH_NAME/kernel/Makefile" | \
-        grep -m1 "KSU_VERSION_API :=" | awk -F':?= ' '{print $NF}' | tr -d '[:space:]')
+    if [ -f "Makefile" ]; then
+        KSU_API_VERSION=$(grep -m1 "KSU_VERSION_API :=" Makefile | awk -F':?= ' '{print $NF}' | tr -d '[:space:]')
+    fi
     [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
     
     # 构建完整版本字符串
@@ -201,18 +243,38 @@ elif [ "$KSU_VERSION" == "sukisu-ultra" ]; then
     echo "完整版本: $KSU_VERSION_FULL"
     
     # 更新Makefile
-    sed -i '/KSU_VERSION_API :=/d' kernel/Makefile
-    sed -i '/KSU_VERSION_FULL :=/d' kernel/Makefile
-    echo "KSU_VERSION_API := $KSU_API_VERSION" >> kernel/Makefile
-    echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" >> kernel/Makefile
+    if [ -f "Makefile" ]; then
+        # 确保使用UTF-8环境
+        export LC_ALL=C.UTF-8
+        export LANG=C.UTF-8
+        
+        # 移除现有定义
+        sed -i '/KSU_VERSION_API :=/d' Makefile
+        sed -i '/KSU_VERSION_FULL :=/d' Makefile
+        
+        # 添加新的定义到文件开头（确保优先使用）
+        sed -i "1i# Custom version added by build script" Makefile
+        sed -i "1iKSU_VERSION_FULL := $KSU_VERSION_FULL" Makefile
+        sed -i "1iKSU_VERSION_API := $KSU_API_VERSION" Makefile
+        sed -i "1i" Makefile  # 添加空行
+        
+        # 验证修改
+        echo "::group::Makefile内容验证"
+        head -n 5 Makefile
+        echo "::endgroup::"
+        
+        # 添加UTF-8编码验证
+        echo "::group::UTF-8编码验证"
+        file -i Makefile
+        iconv -f UTF-8 -t UTF-8 Makefile >/dev/null && echo "UTF-8验证成功" || echo "UTF-8验证失败"
+        echo "::endgroup::"
+    else
+        echo "错误：Makefile不存在！"
+        exit 1
+    fi
     
-    # 验证修改
-    echo "::group::Makefile内容验证"
-    grep -A2 "KSU_VERSION" kernel/Makefile
     echo "::endgroup::"
-    
-    echo "::endgroup::"
-    cd ..
+    cd ../..
 else
     KSU_ZIP_STR=NoKernelSU
     echo "KSU is disabled"
