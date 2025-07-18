@@ -30,7 +30,7 @@ if [ -n "$KSU_META" ]; then
   echo "原始输入: $KSU_META"
   
   # 提取分支名（第一个斜杠前的内容）
-  BRANCH_NAME="${K极_META%%/*}"
+  BRANCH_NAME="${KSU_META%%/*}"
   
   # 提取自定义标签（第一个斜杠后的所有内容）
   CUSTOM_TAG="${KSU_META#*/}"
