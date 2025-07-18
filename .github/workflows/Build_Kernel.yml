@@ -57,11 +57,11 @@ on:
           - 'susfs-kpm'
           - 'no'
           
-      ksu_meta:
+      KSU_META:  # 添加新的输入参数
+        type: string
         description: "分支名/自定义版本标识"
         required: false
-        type: string
-        default: "susfs-main/自定义标签"
+        default: "susfs-main/Numbersf"
 
 permissions:
   contents: write
@@ -99,7 +99,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y build-essential git curl wget bison flex zip bc cpio libssl-dev libncurses-dev gcc python3 python3-pip ccache jq
+          sudo apt-get install -y build-essential git curl wget bison flex zip bc cpio libssl-dev libncurses-dev gcc python3 python3-pip ccache
 
       - name: Clean workspace
         run: |
@@ -132,13 +132,53 @@ jobs:
           path: ~/.cache/ccache_mikernel
           key: ${{ runner.os }}-ccache-${{ matrix.device }}-${{ github.sha }}
           restore-keys: ${{ runner.os }}-ccache-${{ matrix.device }}-
+          
+      # 添加 SukiSU Ultra 步骤
+      - name: Add SukiSU Ultra
+        if: ${{ github.event.inputs.kernelsu_version == 'sukisu-ultra' }}  # 仅当选择sukisu-ultra时执行
+        run: |
+          META="${{ github.event.inputs.KSU_META }}"
+          BRANCH_NAME="${META%%/*}"
+          CUSTOM_TAG="${META#*/}"
+          echo "分支名: $BRANCH_NAME"
+          echo "自定义版本标识: $CUSTOM_TAG"
+
+          # 使用文档1中的脚本
+          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s "$BRANCH_NAME"
+          cd ./KernelSU
+
+          # 获取API版本
+          KSU_API_VERSION=$(curl -fsSL "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/$BRANCH_NAME/kernel/Makefile" | \
+            grep -m1 "KSU_VERSION_API :=" | awk -F'= ' '{print $2}' | tr -d '[:space:]')
+          [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
+
+          echo "KSU_API_VERSION=$KSU_API_VERSION" >> $GITHUB_ENV
+
+          # 构建完整版本字符串
+          KSU_VERSION_FULL="v$KSU_API_VERSION-$CUSTOM_TAG@$BRANCH_NAME"
+          echo "KSU_VERSION_FULL=$KSU_VERSION_FULL" >> $GITHUB_ENV
+
+          # 更新Makefile中的版本信息
+          sed -i '/KSU_VERSION_API :=/d' kernel/Makefile
+          sed -i '/KSU_VERSION_FULL :=/d' kernel/Makefile
+
+          echo "KSU_VERSION_API := $KSU_API_VERSION" >> kernel/Makefile
+          echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" >> kernel/Makefile
+
+          # 计算KSU版本号
+          KSU_VERSION=$(expr $(git rev-list --count main 2>/dev/null || echo 13000) + 10700)
+          echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
+
+          echo "::group:: 最终 Makefile 中版本信息预览"
+          grep -A5 "KSU_VERSION_API" kernel/Makefile
+          echo "::endgroup::"
+          
+          cd ..  # 返回工作目录
 
       - name: Build Kernel
-        env:
-          KSU_META: ${{ github.event.inputs.ksu_meta }}
         run: |
           sed -i "s|TOOLCHAIN_PATH=\$HOME/toolchain/proton-clang/bin|TOOLCHAIN_PATH=$(pwd)/toolchain/proton-clang/bin|" build.sh
-          bash build.sh "${{ matrix.device }}" "${{ github.event.inputs.kernelsu_version }}" "${{ github.event.inputs.additional_function }}" "${{ github.event.inputs.system_version }}" "$KSU_META"
+          bash build.sh "${{ matrix.device }}" "${{ github.event.inputs.kernelsu_version }}" "${{ github.event.inputs.additional_function }}" "${{ github.event.inputs.system_version }}"
 
       - name: Generate Device Name Mapping
         id: device_mapping
@@ -193,7 +233,7 @@ jobs:
         run: |
           DEVICE_NAMES=$(ls release | cut -d'-' -f1 | sort -u | tr '\n' ',' | sed 's/,$//')
           echo "device_names=$DEVICE_NAMES" >> $GITHUB_OUTPUT
-          echo "RELEASE_BODY=## Kernel Build\n- **Devices:** $DEVICE_NAMES\n- **System:** ${{ github.event.inputs.system_version }}\n- **KernelSU:** ${{ github.event.inputs.kernelsu_version }}\n- **KSU Meta:** ${{ github.event.inputs.ksu_meta }}\n- **Build Date:** $(date +%Y-%m-%d)" >> $GITHUB_ENV
+          echo "RELEASE_BODY=## Kernel Build\n- **Devices:** $DEVICE_NAMES\n- **System:** ${{ github.event.inputs.system_version }}\n- **KernelSU:** ${{ github.event.inputs.kernelsu_version }}\n- **Build Date:** $(date +%Y-%m-%d)" >> $GITHUB_ENV
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
