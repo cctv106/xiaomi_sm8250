@@ -58,7 +58,7 @@ on:
           - 'no'
           
       ksu_meta:
-        description: "分支名/自定义版本标识"
+        description: "分支名/自定义版本标识 (支持中文和特殊符号)"
         required: false
         type: string
         default: "susfs-main/酷安@宝明v"
@@ -92,7 +92,6 @@ jobs:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       CCACHE_NOHASHDIR: "true"
       CCACHE_HARDLINK: "true"
-      KSU_META: ${{ github.event.inputs.ksu_meta }}
 
     steps:
       - uses: actions/checkout@v4
@@ -136,7 +135,7 @@ jobs:
 
       - name: Build Kernel
         env:
-          KSU_META: ${{ env.KSU_META }}
+          KSU_META: ${{ github.event.inputs.ksu_meta }}
         run: |
           sed -i "s|TOOLCHAIN_PATH=\$HOME/toolchain/proton-clang/bin|TOOLCHAIN_PATH=$(pwd)/toolchain/proton-clang/bin|" build.sh
           bash build.sh "${{ matrix.device }}" "${{ github.event.inputs.kernelsu_version }}" "${{ github.event.inputs.additional_function }}" "${{ github.event.inputs.system_version }}" "$KSU_META"
@@ -146,7 +145,7 @@ jobs:
         run: |
           declare -A device_map=(
             ["psyche"]="Mi12X" ["thyme"]="Mi10S" ["umi"]="Mi10" ["munch"]="K40S"
-            ["lmi"]="K30Pro" ["cmi"]="Mi10Pro" ["cas"]="Mi10Ultra" ["apollo"]="Mi10T-K30SUltra"
+            ["lmi"]="K30Pro" ["cmi"]="Mi10Pro" ["cas"]="Mi10Ultra" ["apollo"]="极10T-K30SUltra"
             ["alioth"]="Mi11X-K40" ["elish"]="XiaomiPad5Pro" ["enuma"]="XiaomiPad5Pro5G"
             ["dagu"]="XiaomiPad5Pro12.4" ["pipa"]="XiaomiPad6"
           )
