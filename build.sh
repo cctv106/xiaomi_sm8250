@@ -384,8 +384,8 @@ Image_Repack(){
         exit 1
     fi
 
-    # KPM Patch
-    if [[ "$KPM_ENABLE" -eq 1 && "$KSU_VERSION" == "sukisu-ultra" ]]; then
+    # 确保 KPM 修补逻辑能触发
+    if [[ "$KPM_ENABLE" -eq 1 && ("$KSU_VERSION" == "sukisu-ultra" || -n "$FORCE_KPM_PATCH") ]]; then
         Patch_KPM
     fi
 
