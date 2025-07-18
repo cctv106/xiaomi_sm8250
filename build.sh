@@ -49,6 +49,7 @@ echo "::endgroup::"
 
 if [ ! -d $TOOLCHAIN_PATH ]; then
     echo "TOOLCHAIN_PATH [$TOOLCHAIN_PATH] does not exist."
+    echo "Please ensure the toolchain is there, or change TOOLCHAIN_PATH in the script to your toolchain path."
     exit 1
 fi
 
@@ -90,6 +91,7 @@ fi
 
 if [ ! -f "arch/arm64/configs/${TARGET_DEVICE}_defconfig" ]; then
     echo "No target device [${TARGET_DEVICE}] found."
+    echo "Avaliable defconfigs, please choose one target from below down:"
     ls arch/arm64/configs/*_defconfig
     exit 1
 fi
@@ -136,7 +138,7 @@ if [ "$KSU_VERSION" == "ksu" ]; then
 elif [[ "$KSU_VERSION" == "ksu" && "$SuSFS_ENABLE" -eq 1 ]]; then
     echo "Official KernelSU not supported SuSFS"
     exit 1
-elif [[ "$K极_VERSION" == "rksu" && "$SuSFS_ENABLE" -eq 1 ]]; then
+elif [[ "$KSU_VERSION" == "rksu" && "$SuSFS_ENABLE" -eq 1 ]]; then
     KSU_ZIP_STR=RKSU_SuSFS
     echo "RKSU && SuSFS is enabled"
     curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s susfs-v1.5.5
@@ -164,9 +166,8 @@ elif [[ "$KSU_VERSION" == "sukisu-ultra" && "$SuSFS_ENABLE" -eq 1 ]]; then
         cd kernel
     fi
     
-    if [ -f "Makefile" ]; then
-        KSU_API_VERSION=$(grep -m1 "KSU_VERSION_API :=" Makefile | awk -F':?= ' '{print $NF}' | tr -d '[:space:]')
-    fi
+    KSU_API_VERSION=$(curl -fsSL "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/$BRANCH_NAME/kernel/Makefile" | \
+        grep -m1 "KSU_VERSION_API :=" | awk -F':?= ' '{print $NF}' | tr -d '[:space:]')
     [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
     
     KSU_VERSION_FULL="v$KSU_API_VERSION-$CUSTOM_TAG@$BRANCH_NAME"
@@ -174,27 +175,13 @@ elif [[ "$KSU_VERSION" == "sukisu-ultra" && "$SuSFS_ENABLE" -eq 1 ]]; then
     echo "API版本: $KSU_API_VERSION"
     echo "自定义标签: $CUSTOM_TAG"
     echo "分支名: $BRANCH_NAME"
-    echo "完整版本: $KSU_VERSION_FULL"
+    echo "完整版本: $K极_VERSION_FULL"
     
     if [ -f "Makefile" ]; then
         sed -i '/KSU_VERSION_API :=/d' Makefile
         sed -i '/KSU_VERSION_FULL :=/d' Makefile
         echo "KSU_VERSION_API := $KSU_API_VERSION" >> Makefile
         echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" >> Makefile
-        
-        # 关键修复：确保使用UTF-8编码
-        export LC_ALL=en_US.UTF-8
-        export LANG=en_US.UTF-8
-        
-        # 验证修改
-        echo "::group::Makefile内容验证"
-        tail -n 2 Makefile
-        echo "::endgroup::"
-        
-        # 验证编码
-        echo "::group::UTF-8编码验证"
-        file -i Makefile
-        echo "::endgroup::"
     else
         echo "错误：Makefile不存在！"
         exit 1
@@ -214,9 +201,8 @@ elif [ "$KSU_VERSION" == "sukisu-ultra" ]; then
         cd kernel
     fi
     
-    if [ -f "Makefile" ]; then
-        KSU_API_VERSION=$(grep -m1 "KSU_VERSION_API :=" Makefile | awk -F':?= ' '{print $NF}' | tr -d '[:space:]')
-    fi
+    KSU_API_VERSION=$(curl -fsSL "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/$BRANCH_NAME/kernel/Makefile" | \
+        grep -m1 "KSU_VERSION_API :=" | awk -F':?= ' '{print $NF}' | tr -d '[:space:]')
     [[ -z "$KSU_API_VERSION" ]] && KSU_API_VERSION="3.1.7"
     
     KSU_VERSION_FULL="v$KSU_API_VERSION-$CUSTOM_TAG@$BRANCH_NAME"
@@ -231,20 +217,6 @@ elif [ "$KSU_VERSION" == "sukisu-ultra" ]; then
         sed -i '/KSU_VERSION_FULL :=/d' Makefile
         echo "KSU_VERSION_API := $KSU_API_VERSION" >> Makefile
         echo "KSU_VERSION_FULL := $KSU_VERSION_FULL" >> Makefile
-        
-        # 关键修复：确保使用UTF-8编码
-        export LC_ALL=en_US.UTF-8
-        export LANG=en_US.UTF-8
-        
-        # 验证修改
-        echo "::group::Makefile内容验证"
-        tail -n 2 Makefile
-        echo "::endgroup::"
-        
-        # 验证编码
-        echo "::group::UTF-8编码验证"
-        file -i Makefile
-        echo "::endgroup::"
     else
         echo "错误：Makefile不存在！"
         exit 1
