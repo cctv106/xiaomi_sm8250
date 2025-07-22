@@ -5,14 +5,13 @@
 # Ensure the script exits on error
 set -e
 
-if [ -n "$KSU_VERSION_FULL" ]; then
-    echo "使用自定义KSU版本: $KSU_VERSION_FULL"
-    KSU_ZIP_STR="$KSU_VERSION_FULL"
-fi
-
 TOOLCHAIN_PATH=$HOME/toolchain/proton-clang/bin
 GIT_COMMIT_ID=$(git rev-parse --short=13 HEAD)
 TARGET_DEVICE=$1
+KSU_VERSION_ARG=$2
+ADDITIONAL=$3
+TARGET_SYSTEM=$4
+KSU_API_VERSION=${5:-"3.1.8"}  # 默认值3.1.8
 
 if [ -z "$1" ]; then
     echo "Error: No argument provided, please specific a target device." 
@@ -83,70 +82,58 @@ clang --version
 KERNEL_SRC=$(pwd)
 SuSFS_ENABLE=0
 KPM_ENABLE=0
-KSU_VERSION=$2
-ADDITIONAL=$3
-TARGET_SYSTEM=$4
+KSU_VERSION=$KSU_VERSION_ARG
 
 echo "TARGET_DEVICE: $TARGET_DEVICE"
+echo "KSU_API_VERSION: $KSU_API_VERSION"
 
 KSU_ENABLE=$([[ "$KSU_VERSION" == "ksu" || "$KSU_VERSION" == "rksu" || "$KSU_VERSION" == "sukisu" || "$KSU_VERSION" == "sukisu-ultra" ]] && echo 1 || echo 0)
 
-if [ "$ADDITIONAL" == "susfs-kpm" ]; then
-    SuSFS_ENABLE=1
-    KPM_ENABLE=1
-    echo "Enable SuSFS and KPM"
-elif [ "$ADDITIONAL" == "susfs" ]; then
-    SuSFS_ENABLE=1
-    echo "Enable SuSFS"
-elif [ "$ADDITIONAL" == "kpm" ]; then
-    KPM_ENABLE=1
-    echo "Enable KPM"
-else 
-    echo "The additional function is not enabled"
-fi
-
-# 修改：优先使用自定义KSU版本标识
-if [ "$KSU_VERSION" == "ksu" ]; then
-    KSU_ZIP_STR=${KSU_ZIP_STR:-"KernelSU"}
-    echo "KSU is enabled"
-    curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
+# SukiSU-Ultra特殊处理
+if [ "$KSU_VERSION" == "sukisu-ultra" ]; then
+    if [ "$ADDITIONAL" == "susfs-kpm" ]; then
+        SuSFS_ENABLE=1
+        KPM_ENABLE=1
+        echo "SukiSU-Ultra && SuSFS && KPM enabled"
+    elif [ "$ADDITIONAL" == "susfs" ]; then
+        SuSFS_ENABLE=1
+        echo "SukiSU-Ultra && SuSFS enabled"
+    elif [ "$ADDITIONAL" == "kpm" ]; then
+        KPM_ENABLE=1
+        echo "SukiSU-Ultra && KPM enabled"
+    else
+        echo "SukiSU-Ultra enabled"
+    fi
+    KSU_ZIP_STR="SukiSU-Ultra"
 elif [[ "$KSU_VERSION" == "ksu" && "$SuSFS_ENABLE" -eq 1 ]]; then
     echo "Official KernelSU not supported SuSFS"
     exit 1
 elif [[ "$KSU_VERSION" == "rksu" && "$SuSFS_ENABLE" -eq 1 ]]; then
-    KSU_ZIP_STR=${KSU_ZIP_STR:-"RKSU_SuSFS"}
+    KSU_ZIP_STR=RKSU_SuSFS
     echo "RKSU && SuSFS is enabled"
     curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s susfs-v1.5.5
 elif [ "$KSU_VERSION" == "rksu" ]; then
-    KSU_ZIP_STR=${KSU_ZIP_STR:-"RKSU"}
+    KSU_ZIP_STR=RKSU
     echo "RKSU is enabled"
     curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
 elif [[ "$KSU_VERSION" == "sukisu" && "$SuSFS_ENABLE" -eq 1 ]]; then
-    KSU_ZIP_STR=${KSU_ZIP_STR:-"SukiSU_SuSFS"}
+    KSU_ZIP_STR=SukiSU_SuSFS
     echo "SukiSU && SuSFS is enabled"
     curl -LSs "https://raw.githubusercontent.com/ShirkNeko/KernelSU/main/kernel/setup.sh" | bash -s susfs-dev
 elif [ "$KSU_VERSION" == "sukisu" ]; then
-    KSU_ZIP_STR=${KSU_ZIP_STR:-"SukiSU"}
+    KSU_ZIP_STR=SukiSU
     echo "SukiSU is enabled"
     curl -LSs "https://raw.githubusercontent.com/ShirkNeko/KernelSU/main/kernel/setup.sh" | bash -s dev
 elif [[ "$KSU_VERSION" == "sukisu-ultra" && "$SuSFS_ENABLE" -eq 1 ]]; then
-    # 优先使用自定义版本
-    KSU_ZIP_STR=${KSU_ZIP_STR:-"SukiSU-Ultra_SuSFS"}
+    KSU_ZIP_STR="SukiSU-Ultra"
     echo "SukiSU-Ultra && SuSFS is enabled"
-    # 检查是否已经设置过KernelSU
-    if [ ! -d "$KERNEL_SRC/KernelSU" ]; then
-        curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
-    fi
+    curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
 elif [ "$KSU_VERSION" == "sukisu-ultra" ]; then
-    # 优先使用自定义版本
-    KSU_ZIP_STR=${KSU_ZIP_STR:-"SukiSU-Ultra"}
+    KSU_ZIP_STR=SukiSU-Ultra
     echo "SukiSU-Ultra is enabled"
-    # 检查是否已经设置过KernelSU
-    if [ ! -d "$KERNEL_SRC/KernelSU" ]; then
-        curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s nongki
-    fi
+    curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s nongki
 else
-    KSU_ZIP_STR=${KSU_ZIP_STR:-"NoKernelSU"}
+    KSU_ZIP_STR=NoKernelSU
     echo "KSU is disabled"
 fi
 
@@ -356,14 +343,15 @@ SET_CONFIG(){
 
 Image_Repack(){
     if [ -f "out/arch/arm64/boot/Image" ]; then
-        echo "The file [out/arch/arm64/boot/Image] exists. AOSP Build successfully."
+        echo "The file [out/arch/arm64/boot/Image] exists. Build successful."
     else
-        echo "The file [out/arch/arm64/boot/Image] does not exist. Seems AOSP build failed."
+        echo "The file [out/arch/arm64/boot/Image] does not exist. Build failed."
         exit 1
     fi
 
-    # KPM Patch
+    # KPM Patch - 仅对SukiSU-Ultra且启用了KPM时应用
     if [[ "$KPM_ENABLE" -eq 1 && "$KSU_VERSION" == "sukisu-ultra" ]]; then
+        echo "Applying KPM patch for SukiSU-Ultra..."
         Patch_KPM
     fi
 
@@ -377,7 +365,6 @@ Image_Repack(){
     fi
 
     rm -rf anykernel/kernels/
-
     mkdir -p anykernel/kernels/
 
     cp out/arch/arm64/boot/Image anykernel/kernels/
@@ -385,10 +372,19 @@ Image_Repack(){
 
     cd anykernel 
 
+    # 更新ZIP文件名格式
     if [ "$1" == "MIUI" ]; then
-        ZIP_FILENAME=Kernel_MIUI_${TARGET_DEVICE}_${KSU_ZIP_STR}_$(date +'%Y%m%d_%H%M%S')_anykernel3_${GIT_COMMIT_ID}.zip
+        ZIP_FILENAME="Kernel_MIUI_${TARGET_DEVICE}_${KSU_ZIP_STR}_$(date +'%Y%m%d_%H%M%S')_anykernel3_${GIT_COMMIT_ID}.zip"
     else
-        ZIP_FILENAME=Kernel_AOSP_${TARGET_DEVICE}_${KSU_ZIP_STR}_$(date +'%Y%m%d_%H%M%S')_anykernel3_${GIT_COMMIT_ID}.zip
+        ZIP_FILENAME="Kernel_AOSP_${TARGET_DEVICE}_${KSU_ZIP_STR}_$(date +'%Y%m%d_%H%M%S')_anykernel3_${GIT_COMMIT_ID}.zip"
+    fi
+
+    # 添加SukiSU-Ultra特定文件
+    if [[ "$KSU_VERSION" == "sukisu-ultra" && "$KPM_ENABLE" -eq 1 ]]; then
+        echo "Adding KPM module for SukiSU-Ultra..."
+        mkdir -p modules
+        find ../out -name 'kpm.ko' -exec cp {} modules/ \;
+        zip -r9 $ZIP_FILENAME modules
     fi
 
     zip -r9 $ZIP_FILENAME ./* -x .git .gitignore out/ ./*.zip
@@ -400,19 +396,27 @@ Image_Repack(){
 
 Patch_KPM(){
     cd out/arch/arm64/boot
-    curl -LSs "https://raw.githubusercontent.com/ShirkNeko/SukiSU_patch/refs/heads/main/kpm/patch_linux" -o patch
-    chmod +x patch
-    ./patch
-    if [ $? -eq 0 ]; then
-        rm -f Image
-        mv oImage Image
-        echo "Image file repair complete"
+    
+    echo "Downloading KPM patch..."
+    if curl -LSs "https://raw.githubusercontent.com/ShirkNeko/SukiSU_patch/main/kpm/patch_linux" -o patch; then
+        chmod +x patch
+        echo "Applying KPM patch..."
+        if ./patch; then
+            if [ -f "oImage" ]; then
+                rm -f Image
+                mv oImage Image
+                echo "KPM patch applied successfully"
+            else
+                echo "::warning::Patch created oImage but file not found"
+            fi
+        else
+            echo "::warning::KPM patch application failed, using original Image"
+        fi
     else
-        echo "KPM Patch Failed, Use Original Image"
+        echo "::warning::Failed to download KPM patch, skipping"
     fi
     
     cd $KERNEL_SRC
-
 }
 
 if [ "$TARGET_SYSTEM" == "aosp" ];then
